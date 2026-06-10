@@ -274,7 +274,7 @@ export function prepareImageUploadRequestForm(file) {
   };
 
   const formData = new FormData();
-  formData.append("file", file, file.name);
+  formData.append("assetData", file, file.name);
 
   for (const [key, value] of Object.entries(requestBody)) {
     formData.append(key, value);
