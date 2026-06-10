@@ -8,16 +8,19 @@
     </head>
     <body>
         <h1>Immich Image Clipper - Options</h1>
-        <form action="">
-            <label for="iic-server-url">Server URL:</label>
-            <input type="text" name="iic-server-url" id="iic-server-url" />
+        <form action="" method="post" class="options">
+            <div>
+                <label for="iic-server-url">Server URL:</label>
+                <input type="text" name="iic-server-url" id="iic-server-url" />
+            </div>
 
-            <label for="iic-api-key">API Key:</label>
-            <input type="password" name="iic-api-key" id="iic-api-key" />
+            <div>
+                <label for="iic-api-key">API Key:</label>
+                <input type="password" name="iic-api-key" id="iic-api-key" />
+            </div>
 
             <button type="submit">Save</button>
         </form>
+        <script src="./options.js"></script>
     </body>
-
-    <script src="./options.js"></script>
 </html>

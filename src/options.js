@@ -8,8 +8,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   apiKeyInput.value = settings.apiKey || "";
 
   // Save settings on form submit
-  document.querySelector("form").addEventListener("submit", (e) => {
-    chrome.storage.sync.set({
+  document.querySelector("form").addEventListener("submit", async (e) => {
+    // Prevent form from submitting and refreshing the page
+    e.preventDefault();
+
+    await chrome.storage.sync.set({
       serverUrl: serverUrlInput.value,
       apiKey: apiKeyInput.value,
     });
