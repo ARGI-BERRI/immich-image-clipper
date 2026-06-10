@@ -10,30 +10,34 @@ if (chromeApi?.runtime?.onInstalled) {
   });
 
   chromeApi.contextMenus.onClicked.addListener(async (clickData) => {
-    if (clickData.menuItemId === "iic-save") {
-      const { imageUrl, serverUrl, apiKey } = await getArguments(clickData);
+    // Early return if the clicked menu item is not our "Upload to Immich" action
+    if (clickData.menuItemId !== "iic-save") {
+      return;
+    }
 
-      if (!imageUrl) {
-        console.error("No image URL found in context menu click data.");
-        return;
-      }
+    const { imageUrl, serverUrl, apiKey } = await getArguments(clickData);
 
-      if (!serverUrl || !apiKey) {
-        console.error("Server URL or API key not set in extension options.");
-        return;
-      }
+    if (!imageUrl) {
+      console.error("No image URL found in context menu click data.");
+      return;
+    }
 
-      try {
-        const image = await fetchImageAsFile(imageUrl);
-        console.log("Fetched image:", {
-          fileName: image.fileName,
-          type: image.file.type,
-          size: image.file.size,
-        });
-      } catch (error) {
-        console.error("Error fetching image:", error);
-        return;
-      }
+    if (!serverUrl || !apiKey) {
+      console.error("Server URL or API key not set in extension options.");
+      return;
+    }
+
+    try {
+      const image = await fetchImageAsFile(imageUrl);
+
+      console.log("Fetched image:", {
+        fileName: image.fileName,
+        type: image.file.type,
+        size: image.file.size,
+      });
+    } catch (error) {
+      console.error("Error fetching image:", error);
+      return;
     }
   });
 }
