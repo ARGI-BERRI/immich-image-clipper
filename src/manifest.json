@@ -10,7 +10,6 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "options_page": "options.html",
   "action": {
     "default_popup": "popup.html"
   },
