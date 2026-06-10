@@ -238,22 +238,7 @@ export function sanitizeFileName(fileName) {
  * @returns {Promise<Object>} The response from the Immich API after uploading the image
  */
 export async function uploadImageToImmich({ file, serverUrl, apiKey }) {
-  const fileDate = new Date(file.lastModified);
-  const requestBody = {
-    // NOTE: https://api.immich.app/endpoints/assets/uploadAsset says deviceAssetId and deviceId are required,
-    //       but they aren't in the OpenAPI Specs (https://raw.githubusercontent.com/immich-app/immich/main/open-api/immich-openapi-specs.json).
-    // deviceAssetId: `IIC_${fileDate.getTime()}_${crypto.randomUUID()}`,
-    // deviceId: "ImmichImageClipperExtension",
-    fileCreatedAt: fileDate.toISOString(),
-    fileModifiedAt: fileDate.toISOString(),
-    filename: file.name,
-  };
-
-  const formData = new FormData();
-  formData.append("assetData", file, file.name);
-  for (const [key, value] of Object.entries(requestBody)) {
-    formData.append(key, value);
-  }
+  const formData = prepareImageUploadRequestForm(file);
 
   const endpoint = `${serverUrl.replace(/\/+$/, "")}/api/assets`;
   const response = await fetch(endpoint, {
@@ -263,9 +248,48 @@ export async function uploadImageToImmich({ file, serverUrl, apiKey }) {
   });
 
   if (!response.ok) {
-    const msg = `Failed to upload image: ${response.status} ${response.statusText}`;
+    const responseBody = await response.text();
+    const msg = `Failed to upload image: ${response.status} ${response.statusText}: ${responseBody}`;
     throw new Error(msg);
   }
 
   return await response.json();
+}
+
+/**
+ * Prepares the request form data for uploading an image to Immich.
+ *
+ * @param {File} file The image file to be uploaded
+ * @returns FormData The prepared FormData object containing the necessary fields
+ */
+export function prepareImageUploadRequestForm(file) {
+  const fileDate = new Date(file.lastModified);
+
+  const requestBody = {
+    deviceAssetId: getDeviceAssetId(),
+    deviceId: "ImmichImageClipperExtension",
+    fileCreatedAt: fileDate.toISOString(),
+    fileModifiedAt: fileDate.toISOString(),
+    filename: file.name,
+  };
+
+  const formData = new FormData();
+  formData.append("file", file, file.name);
+
+  for (const [key, value] of Object.entries(requestBody)) {
+    formData.append(key, value);
+  }
+
+  return formData;
+}
+
+/**
+ * Generates a unique device asset ID using the current timestamp and a random UUID.
+ *
+ * @returns string deviceAssetId in the format "IIC_{timestamp}_{randomUUID}"
+ */
+export function getDeviceAssetId() {
+  const timestamp = Date.now();
+  const randomPart = crypto.randomUUID();
+  return `IIC_${timestamp}_${randomPart}`;
 }
