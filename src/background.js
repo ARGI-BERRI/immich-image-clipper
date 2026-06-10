@@ -8,37 +8,47 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.contextMenus.onClicked.addListener(async (clickData) => {
   if (clickData.menuItemId === "iic-save") {
-    const imageUrl = clickData.srcUrl;
+    const { imageUrl, serverUrl, apiKey } = await getArguments(clickData);
 
     if (!imageUrl) {
       console.error("No image URL found in context menu click data.");
       return;
     }
 
-    const { serverUrl, apiKey } = await chrome.storage.sync.get([
-      "serverUrl",
-      "apiKey",
-    ]);
-
     if (!serverUrl || !apiKey) {
-      console.error("Server URL or API key not set in settings.");
+      console.error("Server URL or API key not set in extension options.");
       return;
     }
 
     try {
       const image = await fetchImageAsFile(imageUrl);
+      console.log("Fetched image:", {
+        fileName: image.fileName,
+        type: image.file.type,
+        size: image.file.size,
+      });
     } catch (error) {
       console.error("Error fetching image:", error);
       return;
     }
-
-    console.log("Fetched image:", {
-      fileName: image.fileName,
-      type: image.file.type,
-      size: image.file.size,
-    });
   }
 });
+
+/**
+ * Extracts necessary arguments.
+ * @param {chrome.contextMenus.OnClickData} clickData
+ * @return {Promise<{ imageUrl: string, serverUrl: string, apiKey: string }>} Arguments
+ */
+async function getArguments(clickData) {
+  const imageUrl = clickData.srcUrl;
+
+  const { serverUrl, apiKey } = await chrome.storage.sync.get([
+    "serverUrl",
+    "apiKey",
+  ]);
+
+  return { imageUrl, serverUrl, apiKey };
+}
 
 /**
  * Fetches an image from the given URL and returns it as a Blob and File object.
