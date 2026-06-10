@@ -25,9 +25,12 @@ chrome.contextMenus.onClicked.addListener(async (clickData) => {
       return;
     }
 
-    console.log("Saving image to Immich:", { serverUrl, imageUrl });
-
-    const image = await fetchImageAsFile(imageUrl);
+    try {
+      const image = await fetchImageAsFile(imageUrl);
+    } catch (error) {
+      console.error("Error fetching image:", error);
+      return;
+    }
 
     console.log("Fetched image:", {
       fileName: image.fileName,
@@ -38,23 +41,20 @@ chrome.contextMenus.onClicked.addListener(async (clickData) => {
 });
 
 /**
- * Fetches an image from the given URL and returnsit as a Blob and File object.
+ * Fetches an image from the given URL and returns it as a Blob and File object.
  *
  * The function attempts to determine the file name from
  * the Content-Disposition header or the URL.
  *
- * @param {string} imageUrl
+ * @param {string} imageUrl The URL of the image to fetch
  * @returns {Promise<{ blob: Blob, file: File, fileName: string }>}
  */
 async function fetchImageAsFile(imageUrl) {
-  const response = await fetch(imageUrl, {
-    credentials: "include",
-  });
+  const response = await fetch(imageUrl, { credentials: "include" });
 
   if (!response.ok) {
-    throw new Error(
-      `Failed to fetch image: ${response.status} ${response.statusText}`,
-    );
+    const msg = `Failed to fetch image: ${response.status} ${response.statusText}`;
+    throw new Error(msg);
   }
 
   const blob = await response.blob();
@@ -84,19 +84,20 @@ async function fetchImageAsFile(imageUrl) {
  * @returns {string} Suggested file name for the image, including extension if possible
  */
 function getSuggestedFileName({ contentDisposition, contentType, imageUrl }) {
-  const contentDispositionFileName =
-    getFileNameFromContentDisposition(contentDisposition);
-
-  const urlFileName = getFileNameFromUrl(imageUrl);
-
-  const fileName =
-    sanitizeFileName(contentDispositionFileName || urlFileName || "image") ||
+  const inferredFileName =
+    getFileNameFromContentDisposition(contentDisposition) ||
+    getFileNameFromUrl(imageUrl) ||
     "image";
 
+  // NOTE: sanitizeFileName may return "" if inferredFileName consists entirely of invalid characters
+  const fileName = sanitizeFileName(inferredFileName) || "image";
+
+  // Return fileName as is if it already has an extension
   if (/\.[a-z0-9]{1,8}$/i.test(fileName)) {
     return fileName;
   }
 
+  // Otherwise, infer extension from content type
   const extensions = {
     "image/avif": "avif",
     "image/bmp": "bmp",
@@ -141,15 +142,15 @@ function getFileNameFromContentDisposition(contentDisposition) {
     } catch {
       return encodedFileName;
     }
+  } else {
+    const plainMatch = contentDisposition.match(/filename\s*=\s*([^;]+)/i);
+
+    if (plainMatch) {
+      return plainMatch[1].trim().replace(/^["']|["']$/g, "");
+    }
+
+    return null;
   }
-
-  const plainMatch = contentDisposition.match(/filename\s*=\s*([^;]+)/i);
-
-  if (plainMatch) {
-    return plainMatch[1].trim().replace(/^["']|["']$/g, "");
-  }
-
-  return null;
 }
 
 /**
