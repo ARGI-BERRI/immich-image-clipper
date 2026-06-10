@@ -18,6 +18,11 @@ body {
     gap: 1rem;
 }
 
+.options label {
+    font-weight: bold;
+    margin-bottom: 0.2rem;
+}
+
 .options input {
     width: 100%;
     padding: 0.5rem;
