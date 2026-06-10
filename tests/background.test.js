@@ -114,10 +114,13 @@ describe("prepareImageUploadRequestForm", () => {
     });
     const formData = prepareImageUploadRequestForm(file);
 
-    expect(formData.get("file")).toStrictEqual(file);
-    expect(formData.get("file").name).toBe("test.jpg");
+    expect(formData.get("assetData")).toStrictEqual(file);
+    expect(formData.get("assetData").name).toBe("test.jpg");
     expect(typeof formData.get("deviceAssetId")).toBe("string");
     expect(formData.get("deviceId")).toBe("ImmichImageClipperExtension");
+    expect(formData.get("filename")).toBe("test.jpg");
+    expect(typeof formData.get("fileCreatedAt")).toBe("string");
+    expect(typeof formData.get("fileModifiedAt")).toBe("string");
   });
 });
 
