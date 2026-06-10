@@ -6,7 +6,7 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-chrome.contextMenus.onClicked.addListener(async (clickData, _) => {
+chrome.contextMenus.onClicked.addListener(async (clickData) => {
   if (clickData.menuItemId === "iic-save") {
     const imageUrl = clickData.srcUrl;
     const settings = await chrome.storage.sync.get(["serverUrl", "apiKey"]);
