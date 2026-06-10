@@ -1,45 +1,50 @@
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "iic-save",
-    title: "Upload to Immich",
-    contexts: ["image"],
+const chromeApi = globalThis.chrome;
+
+if (chromeApi?.runtime?.onInstalled) {
+  chromeApi.runtime.onInstalled.addListener(() => {
+    chromeApi.contextMenus.create({
+      id: "iic-save",
+      title: "Upload to Immich",
+      contexts: ["image"],
+    });
   });
-});
 
-chrome.contextMenus.onClicked.addListener(async (clickData) => {
-  if (clickData.menuItemId === "iic-save") {
-    const { imageUrl, serverUrl, apiKey } = await getArguments(clickData);
+  chromeApi.contextMenus.onClicked.addListener(async (clickData) => {
+    if (clickData.menuItemId === "iic-save") {
+      const { imageUrl, serverUrl, apiKey } = await getArguments(clickData);
 
-    if (!imageUrl) {
-      console.error("No image URL found in context menu click data.");
-      return;
+      if (!imageUrl) {
+        console.error("No image URL found in context menu click data.");
+        return;
+      }
+
+      if (!serverUrl || !apiKey) {
+        console.error("Server URL or API key not set in extension options.");
+        return;
+      }
+
+      try {
+        const image = await fetchImageAsFile(imageUrl);
+        console.log("Fetched image:", {
+          fileName: image.fileName,
+          type: image.file.type,
+          size: image.file.size,
+        });
+      } catch (error) {
+        console.error("Error fetching image:", error);
+        return;
+      }
     }
-
-    if (!serverUrl || !apiKey) {
-      console.error("Server URL or API key not set in extension options.");
-      return;
-    }
-
-    try {
-      const image = await fetchImageAsFile(imageUrl);
-      console.log("Fetched image:", {
-        fileName: image.fileName,
-        type: image.file.type,
-        size: image.file.size,
-      });
-    } catch (error) {
-      console.error("Error fetching image:", error);
-      return;
-    }
-  }
-});
+  });
+}
 
 /**
  * Extracts necessary arguments.
+ *
  * @param {chrome.contextMenus.OnClickData} clickData
  * @return {Promise<{ imageUrl: string, serverUrl: string, apiKey: string }>} Arguments
  */
-async function getArguments(clickData) {
+export async function getArguments(clickData) {
   const imageUrl = clickData.srcUrl;
 
   const { serverUrl, apiKey } = await chrome.storage.sync.get([
@@ -59,7 +64,7 @@ async function getArguments(clickData) {
  * @param {string} imageUrl The URL of the image to fetch
  * @returns {Promise<{ blob: Blob, file: File, fileName: string }>}
  */
-async function fetchImageAsFile(imageUrl) {
+export async function fetchImageAsFile(imageUrl) {
   const response = await fetch(imageUrl, { credentials: "include" });
 
   if (!response.ok) {
@@ -93,7 +98,11 @@ async function fetchImageAsFile(imageUrl) {
  * @param {string} options.imageUrl Original image URL
  * @returns {string} Suggested file name for the image, including extension if possible
  */
-function getSuggestedFileName({ contentDisposition, contentType, imageUrl }) {
+export function getSuggestedFileName({
+  contentDisposition,
+  contentType,
+  imageUrl,
+}) {
   const inferredFileName =
     getFileNameFromContentDisposition(contentDisposition) ||
     getFileNameFromUrl(imageUrl) ||
@@ -134,7 +143,7 @@ function getSuggestedFileName({ contentDisposition, contentType, imageUrl }) {
  * @param {string | null} contentDisposition The Content-Disposition header
  * @returns {string | null} The extracted file name, or null if it cannot be determined
  */
-function getFileNameFromContentDisposition(contentDisposition) {
+export function getFileNameFromContentDisposition(contentDisposition) {
   if (!contentDisposition) {
     return null;
   }
@@ -169,9 +178,10 @@ function getFileNameFromContentDisposition(contentDisposition) {
  * @param {string} imageUrl The URL of the image
  * @returns {string | null} The extracted file name, or null if it cannot be determined
  */
-function getFileNameFromUrl(imageUrl) {
+export function getFileNameFromUrl(imageUrl) {
   try {
     const url = new URL(imageUrl);
+
     const pathPart = url.pathname.split("/").filter(Boolean).pop();
 
     if (!pathPart) {
@@ -190,7 +200,7 @@ function getFileNameFromUrl(imageUrl) {
  * @param {string} fileName The original file name to sanitize
  * @returns string The sanitized file name
  */
-function sanitizeFileName(fileName) {
+export function sanitizeFileName(fileName) {
   return Array.from(fileName, (character) => {
     if (character.charCodeAt(0) < 32 || /[<>:"/\\|?*]/.test(character)) {
       return "_";
