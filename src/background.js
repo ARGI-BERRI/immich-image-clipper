@@ -35,6 +35,14 @@ if (chromeApi?.runtime?.onInstalled) {
         type: image.file.type,
         size: image.file.size,
       });
+
+      const uploadResult = await uploadImageToImmich({
+        file: image.file,
+        serverUrl,
+        apiKey,
+      });
+
+      console.log("Upload successful:", uploadResult);
     } catch (error) {
       console.error("Error fetching image:", error);
       return;
@@ -216,4 +224,48 @@ export function sanitizeFileName(fileName) {
     .replace(/\s+/g, " ")
     .replace(/^\.+/, "")
     .trim();
+}
+
+/**
+ * Uploads an image file to the Immich server using the provided API key.
+ *
+ * @see https://api.immich.app/endpoints/assets/uploadAsset
+ *
+ * @param {Object} param
+ * @param {File} param.file
+ * @param {string} param.serverUrl
+ * @param {string} param.apiKey
+ * @returns {Promise<Object>} The response from the Immich API after uploading the image
+ */
+export async function uploadImageToImmich({ file, serverUrl, apiKey }) {
+  const fileDate = new Date(file.lastModified);
+  const requestBody = {
+    // NOTE: https://api.immich.app/endpoints/assets/uploadAsset says deviceAssetId and deviceId are required,
+    //       but they aren't in the OpenAPI Specs (https://raw.githubusercontent.com/immich-app/immich/main/open-api/immich-openapi-specs.json).
+    // deviceAssetId: `IIC_${fileDate.getTime()}_${crypto.randomUUID()}`,
+    // deviceId: "ImmichImageClipperExtension",
+    fileCreatedAt: fileDate.toISOString(),
+    fileModifiedAt: fileDate.toISOString(),
+    filename: file.name,
+  };
+
+  const formData = new FormData();
+  formData.append("assetData", file, file.name);
+  for (const [key, value] of Object.entries(requestBody)) {
+    formData.append(key, value);
+  }
+
+  const endpoint = `${serverUrl.replace(/\/+$/, "")}/api/assets`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "x-api-key": apiKey },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const msg = `Failed to upload image: ${response.status} ${response.statusText}`;
+    throw new Error(msg);
+  }
+
+  return await response.json();
 }
