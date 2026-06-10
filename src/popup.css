@@ -45,3 +45,17 @@ body {
     background-color: light-dark(#0056b3, #007bff);
     cursor: pointer;
 }
+
+.status {
+    min-height: 1.25rem;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.status-success {
+    color: light-dark(#146c43, #75b798);
+}
+
+.status-error {
+    color: light-dark(#b02a37, #ea868f);
+}

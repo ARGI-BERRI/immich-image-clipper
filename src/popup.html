@@ -11,15 +11,33 @@
         <form action="" method="post" class="options">
             <div>
                 <label for="iic-server-url">Server URL:</label>
-                <input type="text" name="iic-server-url" id="iic-server-url" />
+                <input
+                    type="url"
+                    name="iic-server-url"
+                    id="iic-server-url"
+                    required
+                    placeholder="https://immich.example.com"
+                />
             </div>
 
             <div>
                 <label for="iic-api-key">API Key:</label>
-                <input type="password" name="iic-api-key" id="iic-api-key" />
+                <input
+                    type="password"
+                    name="iic-api-key"
+                    id="iic-api-key"
+                    required
+                    autocomplete="off"
+                />
             </div>
 
             <button type="submit">Save</button>
+            <p
+                id="iic-status"
+                class="status"
+                role="status"
+                aria-live="polite"
+            ></p>
         </form>
         <script src="./popup.js"></script>
     </body>

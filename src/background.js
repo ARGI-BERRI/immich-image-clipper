@@ -18,35 +18,91 @@ if (chromeApi?.runtime?.onInstalled) {
     const { imageUrl, serverUrl, apiKey } = await getArguments(clickData);
 
     if (!imageUrl) {
-      console.error("No image URL found in context menu click data.");
+      const message = "No image URL found in context menu click data.";
+      console.error(message);
+
+      showNotification({
+        title: "Immich upload failed",
+        message: "No image URL was found for this menu click.",
+      });
+
       return;
     }
 
     if (!serverUrl || !apiKey) {
-      console.error("Server URL or API key not set in extension options.");
+      const message = "Server URL or API key not set in extension options.";
+      console.error(message);
+
+      showNotification({
+        title: "Immich settings missing",
+        message: "Set your Immich server URL and API key first.",
+      });
+
       return;
     }
 
-    try {
-      const image = await fetchImageAsFile(imageUrl);
+    let image;
 
+    try {
+      image = await fetchImageAsFile(imageUrl);
       console.log("Fetched image:", {
         fileName: image.fileName,
         type: image.file.type,
         size: image.file.size,
       });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown image fetch error";
+      console.error("Error fetching image:", error);
 
+      showNotification({
+        title: "Image fetch failed",
+        message,
+      });
+
+      return;
+    }
+
+    try {
       const uploadResult = await uploadImageToImmich({
         file: image.file,
         serverUrl,
         apiKey,
       });
-
       console.log("Upload successful:", uploadResult);
+
+      showNotification({
+        title: "Uploaded to Immich",
+        message: image.fileName,
+      });
     } catch (error) {
-      console.error("Error fetching image:", error);
+      const message =
+        error instanceof Error ? error.message : "Unknown upload error";
+      console.error("Error uploading image to Immich:", error);
+
+      showNotification({
+        title: "Immich upload failed",
+        message,
+      });
+
       return;
     }
+  });
+}
+
+/**
+ * Shows a browser notification when the extension API is available.
+ *
+ * @param {Object} param
+ * @param {string} param.title
+ * @param {string} param.message
+ */
+export function showNotification({ title, message }) {
+  chromeApi?.notifications?.create({
+    type: "basic",
+    iconUrl: "icons/icon128.png",
+    title,
+    message,
   });
 }
 
