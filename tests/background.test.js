@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  fetchImageAsFile,
   getDeviceAssetId,
   getFileNameFromContentDisposition,
   getFileNameFromUrl,
@@ -7,6 +8,90 @@ import {
   prepareImageUploadRequestForm,
   sanitizeFileName,
 } from "../src/background.js";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("fetchImageAsFile", () => {
+  it("should fetch an image and return it as a File", async () => {
+    const blob = new Blob(["image bytes"], { type: "image/png" });
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      url: "https://example.com/images/original.png",
+      headers: new Headers({
+        "content-disposition": 'attachment; filename="download.png"',
+        "content-type": "image/png",
+      }),
+      blob: vi.fn().mockResolvedValue(blob),
+    });
+
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await fetchImageAsFile("https://example.com/image");
+
+    expect(fetch).toHaveBeenCalledWith("https://example.com/image", {
+      credentials: "include",
+    });
+    expect(result.blob).toBe(blob);
+    expect(result.fileName).toBe("download.png");
+    expect(result.file).toBeInstanceOf(File);
+    expect(result.file.name).toBe("download.png");
+    expect(result.file.type).toBe("image/png");
+    expect(await result.file.text()).toBe("image bytes");
+  });
+
+  it("should infer file type from the response header when the blob type is missing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        url: "https://example.com/images/photo.webp",
+        headers: new Headers({
+          "content-type": "image/webp",
+        }),
+        blob: vi.fn().mockResolvedValue(new Blob(["image bytes"])),
+      }),
+    );
+
+    const result = await fetchImageAsFile("https://example.com/image");
+
+    expect(result.fileName).toBe("photo.webp");
+    expect(result.file.type).toBe("image/webp");
+  });
+
+  it("should use the original URL and default content type when response metadata is missing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        url: "",
+        headers: new Headers(),
+        blob: vi.fn().mockResolvedValue(new Blob(["image bytes"])),
+      }),
+    );
+
+    const result = await fetchImageAsFile("https://example.com/original.gif");
+
+    expect(result.fileName).toBe("original.gif");
+    expect(result.file.type).toBe("application/octet-stream");
+  });
+
+  it("should throw when the image fetch fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      }),
+    );
+
+    await expect(
+      fetchImageAsFile("https://example.com/missing.jpg"),
+    ).rejects.toThrow("Failed to fetch image: 404 Not Found");
+  });
+});
 
 describe("getSuggestedFileName", () => {
   it("should return the file name from Content-Disposition if it is available", () => {
@@ -48,6 +133,16 @@ describe("getSuggestedFileName", () => {
 
     expect(fileName).toBe("image");
   });
+
+  it("should fall back to 'image' when the inferred file name is empty after sanitizing", () => {
+    const fileName = getSuggestedFileName({
+      contentDisposition: 'attachment; filename="..."',
+      contentType: "image/png",
+      imageUrl: "https://example.com/fallback.jpg",
+    });
+
+    expect(fileName).toBe("image.png");
+  });
 });
 
 describe("getFileNameFromContentDisposition", () => {
@@ -63,6 +158,20 @@ describe("getFileNameFromContentDisposition", () => {
       "attachment; filename*=UTF-8''%E2%82%AC%20rates.jpg",
     );
     expect(fileName).toBe("€ rates.jpg");
+  });
+
+  it("should decode an encoded content disposition value without charset metadata", () => {
+    const fileName = getFileNameFromContentDisposition(
+      "attachment; filename*=%E2%82%AC%20rates.jpg",
+    );
+    expect(fileName).toBe("€ rates.jpg");
+  });
+
+  it("should return the encoded content disposition value if decoding fails", () => {
+    const fileName = getFileNameFromContentDisposition(
+      "attachment; filename*=UTF-8''invalid%ZZ.jpg",
+    );
+    expect(fileName).toBe("invalid%ZZ.jpg");
   });
 
   it("should return null if the content disposition header is missing", () => {
@@ -92,6 +201,11 @@ describe("getFileNameFromUrl", () => {
   it("should return the final path segment if no file name is found", () => {
     const fileName = getFileNameFromUrl("https://example.com/path/to/");
     expect(fileName).toBe("to");
+  });
+
+  it("should return null if the URL has no valid path", () => {
+    const fileName = getFileNameFromUrl("file:///");
+    expect(fileName).toBeNull();
   });
 });
 
