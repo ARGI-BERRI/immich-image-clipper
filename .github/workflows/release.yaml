@@ -1,0 +1,70 @@
+name: Release extension
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+      - name: Set release version
+        run: |
+          RELEASE_DATE="$(date -u +%Y%m%d)"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          {
+            echo "RELEASE_VERSION=${RELEASE_DATE}-${SHORT_SHA}"
+            echo "RELEASE_TAG=${RELEASE_DATE}-${SHORT_SHA}"
+          } >> "$GITHUB_ENV"
+
+      - name: Prepare package
+        run: |
+          mkdir -p dist/extension
+          cp -R src/. dist/extension/
+          cd dist/extension
+          zip -r "../immich-image-clipper-${RELEASE_VERSION}.zip" .
+
+      - name: Decode CRX private key
+        run: |
+          echo "${{ secrets.CRX_PRIVATE_KEY_BASE64 }}" | base64 -d > "$RUNNER_TEMP/crx.pem"
+
+      - name: Pack CRX
+        run: |
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          "$CHROME" --pack-extension="$PWD/dist/extension" --pack-extension-key="$RUNNER_TEMP/crx.pem"
+          mv dist/extension.crx "dist/immich-image-clipper-${RELEASE_VERSION}.crx"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" \
+              "dist/immich-image-clipper-${RELEASE_VERSION}.zip" \
+              "dist/immich-image-clipper-${RELEASE_VERSION}.crx" \
+              --clobber
+          else
+            gh release create "${RELEASE_TAG}" \
+              "dist/immich-image-clipper-${RELEASE_VERSION}.zip" \
+              "dist/immich-image-clipper-${RELEASE_VERSION}.crx" \
+              --target "${GITHUB_SHA}" \
+              --title "Immich Image Clipper ${RELEASE_VERSION}" \
+              --notes "Manual release for ${GITHUB_SHA}"
+          fi
