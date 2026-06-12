@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/chrome-manifest",
   "manifest_version": 3,
   "name": "Immich Image Clipper",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Save images from Chrome or Edge context menus to Immich.",
   "permissions": ["contextMenus", "notifications", "storage"],
   "host_permissions": ["<all_urls>"],
