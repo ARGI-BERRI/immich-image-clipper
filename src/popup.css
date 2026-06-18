@@ -4,7 +4,7 @@
 
 body {
     font-family: "Inter", sans-serif;
-    width: 600px;
+    width: 400px;
     margin: 0 auto;
     padding: 1rem;
 
@@ -58,4 +58,32 @@ body {
 
 .status-error {
     color: light-dark(#b02a37, #ea868f);
+}
+
+.upload-history {
+    margin-top: 1.5rem;
+}
+
+.upload-history h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+}
+
+.uploaded-url-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.uploaded-url-list a {
+    color: light-dark(#0a58ca, #6ea8fe);
+    overflow-wrap: anywhere;
+}
+
+.empty-history {
+    margin: 0;
+    color: light-dark(#6c757d, #adb5bd);
+    font-size: 0.9rem;
 }

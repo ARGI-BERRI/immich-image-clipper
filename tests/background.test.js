@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  addUploadedURLToHistory,
   fetchImageAsFile,
   getDeviceAssetId,
   getFileNameFromContentDisposition,
@@ -7,6 +8,8 @@ import {
   getSuggestedFileName,
   prepareImageUploadRequestForm,
   sanitizeFileName,
+  saveUploadedURL,
+  UPLOADED_URLS_STORAGE_KEY,
 } from "../src/background.js";
 
 afterEach(() => {
@@ -218,6 +221,79 @@ describe("sanitizeFileName", () => {
   it("should return an empty string if the file name consists entirely of invalid characters", () => {
     const fileName = sanitizeFileName("...");
     expect(fileName).toBe("");
+  });
+});
+
+describe("addUploadedURLToHistory", () => {
+  it("should add the latest uploaded URL first and keep the five most recent URLs", () => {
+    const uploadedURLs = addUploadedURLToHistory(
+      [
+        "https://immich.example.com/photo/5",
+        "https://immich.example.com/photo/4",
+        "https://immich.example.com/photo/3",
+        "https://immich.example.com/photo/2",
+        "https://immich.example.com/photo/1",
+      ],
+      "https://immich.example.com/photo/6",
+    );
+
+    expect(uploadedURLs).toStrictEqual([
+      "https://immich.example.com/photo/6",
+      "https://immich.example.com/photo/5",
+      "https://immich.example.com/photo/4",
+      "https://immich.example.com/photo/3",
+      "https://immich.example.com/photo/2",
+    ]);
+  });
+
+  it("should move an existing uploaded URL to the front instead of duplicating it", () => {
+    const uploadedURLs = addUploadedURLToHistory(
+      [
+        "https://immich.example.com/photo/3",
+        "https://immich.example.com/photo/2",
+        "https://immich.example.com/photo/1",
+      ],
+      "https://immich.example.com/photo/2",
+    );
+
+    expect(uploadedURLs).toStrictEqual([
+      "https://immich.example.com/photo/2",
+      "https://immich.example.com/photo/3",
+      "https://immich.example.com/photo/1",
+    ]);
+  });
+
+  it("should ignore invalid stored values", () => {
+    const uploadedURLs = addUploadedURLToHistory(
+      ["https://immich.example.com/photo/1", null, 1],
+      "https://immich.example.com/photo/2",
+    );
+
+    expect(uploadedURLs).toStrictEqual([
+      "https://immich.example.com/photo/2",
+      "https://immich.example.com/photo/1",
+    ]);
+  });
+});
+
+describe("saveUploadedURL", () => {
+  it("should save uploaded URLs to the provided storage area", async () => {
+    const storageArea = {
+      get: vi.fn().mockResolvedValue({
+        [UPLOADED_URLS_STORAGE_KEY]: ["https://immich.example.com/photo/1"],
+      }),
+      set: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await saveUploadedURL("https://immich.example.com/photo/2", storageArea);
+
+    expect(storageArea.get).toHaveBeenCalledWith(UPLOADED_URLS_STORAGE_KEY);
+    expect(storageArea.set).toHaveBeenCalledWith({
+      [UPLOADED_URLS_STORAGE_KEY]: [
+        "https://immich.example.com/photo/2",
+        "https://immich.example.com/photo/1",
+      ],
+    });
   });
 });
 

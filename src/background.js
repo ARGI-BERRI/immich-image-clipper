@@ -1,4 +1,6 @@
 const chromeApi = globalThis.chrome;
+const UPLOADED_URL_HISTORY_LIMIT = 5;
+export const UPLOADED_URLS_STORAGE_KEY = "uploadedURLs";
 
 if (chromeApi?.runtime?.onInstalled) {
   chromeApi.runtime.onInstalled.addListener(() => {
@@ -69,11 +71,21 @@ if (chromeApi?.runtime?.onInstalled) {
         serverUrl,
         apiKey,
       });
+
+      const uploadedURL = `${serverUrl.replace(/\/+$/, "")}/photo/${uploadResult.id}`;
+
+      try {
+        await saveUploadedURL(uploadedURL);
+      } catch (error) {
+        console.warn("Could not save uploaded URL history:", error);
+      }
+
       console.log("Upload successful:", uploadResult);
+      console.log("Uploaded image URL:", uploadedURL);
 
       showNotification({
         title: "Uploaded to Immich",
-        message: image.fileName,
+        message: `${image.fileName} (${uploadedURL})`,
       });
     } catch (error) {
       const message =
@@ -104,6 +116,47 @@ export function showNotification({ title, message }) {
     title,
     message,
   });
+}
+
+/**
+ * Saves a successful upload URL in newest-first order.
+ *
+ * @param {string} uploadedURL
+ * @param {chrome.storage.StorageArea} storageArea
+ */
+export async function saveUploadedURL(
+  uploadedURL,
+  storageArea = chromeApi?.storage?.local,
+) {
+  if (!storageArea) {
+    return;
+  }
+
+  const stored = await storageArea.get(UPLOADED_URLS_STORAGE_KEY);
+  const uploadedURLs = addUploadedURLToHistory(
+    stored[UPLOADED_URLS_STORAGE_KEY],
+    uploadedURL,
+  );
+
+  await storageArea.set({ [UPLOADED_URLS_STORAGE_KEY]: uploadedURLs });
+}
+
+/**
+ * Adds a URL to upload history, removing duplicates and keeping only recent items.
+ *
+ * @param {unknown} uploadedURLs
+ * @param {string} uploadedURL
+ * @returns {string[]}
+ */
+export function addUploadedURLToHistory(uploadedURLs, uploadedURL) {
+  const existingURLs = Array.isArray(uploadedURLs)
+    ? uploadedURLs.filter(
+        (storedURL) =>
+          typeof storedURL === "string" && storedURL !== uploadedURL,
+      )
+    : [];
+
+  return [uploadedURL, ...existingURLs].slice(0, UPLOADED_URL_HISTORY_LIMIT);
 }
 
 /**
@@ -291,7 +344,7 @@ export function sanitizeFileName(fileName) {
  * @param {File} param.file
  * @param {string} param.serverUrl
  * @param {string} param.apiKey
- * @returns {Promise<Object>} The response from the Immich API after uploading the image
+ * @returns {Promise<{ status: string, id: string }>} The response from the Immich API after uploading the image
  */
 export async function uploadImageToImmich({ file, serverUrl, apiKey }) {
   const formData = prepareImageUploadRequestForm(file);
