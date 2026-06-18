@@ -1,2 +1,14 @@
 [tools]
 actionlint = "latest"
+cspell = "latest"
+
+[tasks.lint]
+run = [
+    "npm run lint",
+    "npm run format",
+    "cspell lint .",
+    "actionlint .github/workflows/*.yaml",
+]
+
+[tasks.test]
+run = ["npm run test"]
