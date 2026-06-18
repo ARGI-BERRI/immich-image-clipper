@@ -72,7 +72,7 @@ if (chromeApi?.runtime?.onInstalled) {
         apiKey,
       });
 
-      const uploadedURL = `${serverUrl.replace(/\/+$/, "")}/photo/${uploadResult.id}`;
+      const uploadedURL = `${serverUrl.replace(/\/+$/, "")}/photos/${uploadResult.id}`;
 
       try {
         await saveUploadedURL(uploadedURL);
