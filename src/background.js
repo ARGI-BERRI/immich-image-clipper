@@ -186,7 +186,10 @@ export async function getArguments(clickData) {
  * @returns {Promise<{ blob: Blob, file: File, fileName: string }>}
  */
 export async function fetchImageAsFile(imageUrl) {
-  const response = await fetch(imageUrl, { credentials: "include" });
+  const response = await fetch(imageUrl, {
+    credentials: "include",
+    referrer: getReferrerFromImageUrl(imageUrl),
+  });
 
   if (!response.ok) {
     const msg = `Failed to fetch image: ${response.status} ${response.statusText}`;
@@ -208,6 +211,26 @@ export async function fetchImageAsFile(imageUrl) {
   const file = new File([blob], fileName, { type: contentType });
 
   return { blob, file, fileName };
+}
+
+/**
+ * Gets the origin referrer to use when fetching an image.
+ *
+ * @param {string} imageUrl The URL of the image to fetch
+ * @returns {string} The image URL origin as a referrer, or an empty referrer
+ */
+export function getReferrerFromImageUrl(imageUrl) {
+  try {
+    const url = new URL(imageUrl);
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return "";
+    }
+
+    return `${url.origin}/`;
+  } catch {
+    return "";
+  }
 }
 
 /**

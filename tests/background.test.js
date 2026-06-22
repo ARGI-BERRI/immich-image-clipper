@@ -5,6 +5,7 @@ import {
   getDeviceAssetId,
   getFileNameFromContentDisposition,
   getFileNameFromUrl,
+  getReferrerFromImageUrl,
   getSuggestedFileName,
   prepareImageUploadRequestForm,
   sanitizeFileName,
@@ -35,6 +36,7 @@ describe("fetchImageAsFile", () => {
 
     expect(fetch).toHaveBeenCalledWith("https://example.com/image", {
       credentials: "include",
+      referrer: "https://example.com/",
     });
     expect(result.blob).toBe(blob);
     expect(result.fileName).toBe("download.png");
@@ -93,6 +95,22 @@ describe("fetchImageAsFile", () => {
     await expect(
       fetchImageAsFile("https://example.com/missing.jpg"),
     ).rejects.toThrow("Failed to fetch image: 404 Not Found");
+  });
+});
+
+describe("getReferrerFromImageUrl", () => {
+  it("should return the image URL origin as a referrer", () => {
+    const referrer = getReferrerFromImageUrl(
+      "https://example.com:8443/path/to/image.jpg?size=large",
+    );
+
+    expect(referrer).toBe("https://example.com:8443/");
+  });
+
+  it("should return an empty referrer when the image URL has no HTTP origin", () => {
+    const referrer = getReferrerFromImageUrl("data:image/png;base64,aaaa");
+
+    expect(referrer).toBe("");
   });
 });
 
