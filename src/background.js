@@ -1,5 +1,6 @@
 const chromeApi = globalThis.chrome;
 const UPLOADED_URL_HISTORY_LIMIT = 5;
+let nextReferrerRuleId = 1_000_000;
 export const UPLOADED_URLS_STORAGE_KEY = "uploadedURLs";
 
 if (chromeApi?.runtime?.onInstalled) {
@@ -17,7 +18,7 @@ if (chromeApi?.runtime?.onInstalled) {
       return;
     }
 
-    const { imageUrl, serverUrl, apiKey } = await getArguments(clickData);
+    const { imageUrl, pageUrl, serverUrl, apiKey } = await getArguments(clickData);
 
     if (!imageUrl) {
       const message = "No image URL found in context menu click data.";
@@ -46,7 +47,7 @@ if (chromeApi?.runtime?.onInstalled) {
     let image;
 
     try {
-      image = await fetchImageAsFile(imageUrl);
+      image = await fetchImageAsFile(imageUrl, { sourceUrl: pageUrl });
       console.log("Fetched image:", {
         fileName: image.fileName,
         type: image.file.type,
@@ -163,17 +164,18 @@ export function addUploadedURLToHistory(uploadedURLs, uploadedURL) {
  * Extracts necessary arguments.
  *
  * @param {chrome.contextMenus.OnClickData} clickData
- * @return {Promise<{ imageUrl: string, serverUrl: string, apiKey: string }>} Arguments
+ * @return {Promise<{ imageUrl: string, pageUrl: string, serverUrl: string, apiKey: string }>} Arguments
  */
 export async function getArguments(clickData) {
   const imageUrl = clickData.srcUrl;
+  const pageUrl = clickData.pageUrl;
 
   const { serverUrl, apiKey } = await chrome.storage.sync.get([
     "serverUrl",
     "apiKey",
   ]);
 
-  return { imageUrl, serverUrl, apiKey };
+  return { imageUrl, pageUrl, serverUrl, apiKey };
 }
 
 /**
@@ -183,12 +185,16 @@ export async function getArguments(clickData) {
  * the Content-Disposition header or the URL.
  *
  * @param {string} imageUrl The URL of the image to fetch
+ * @param {Object} options
+ * @param {string} options.sourceUrl The URL of the page where the image was found
  * @returns {Promise<{ blob: Blob, file: File, fileName: string }>}
  */
-export async function fetchImageAsFile(imageUrl) {
-  const response = await fetch(imageUrl, {
+export async function fetchImageAsFile(imageUrl, { sourceUrl } = {}) {
+  const referrer = getReferrerFromImageUrl(imageUrl, sourceUrl);
+  const response = await fetchWithReferrer(imageUrl, {
     credentials: "include",
-    referrer: getReferrerFromImageUrl(imageUrl),
+    referrer,
+    referrerPolicy: "no-referrer-when-downgrade",
   });
 
   if (!response.ok) {
@@ -214,23 +220,150 @@ export async function fetchImageAsFile(imageUrl) {
 }
 
 /**
+ * Fetches a URL while temporarily forcing a Referer header for hosts that need it.
+ *
+ * @param {string} url
+ * @param {RequestInit} options
+ * @returns {Promise<Response>}
+ */
+async function fetchWithReferrer(url, options) {
+  const referrerRule = getReferrerHeaderRule(url, options.referrer);
+
+  if (!referrerRule) {
+    return await fetch(url, options);
+  }
+
+  try {
+    await chromeApi.declarativeNetRequest.updateSessionRules({
+      removeRuleIds: [referrerRule.id],
+      addRules: [referrerRule],
+    });
+  } catch (error) {
+    console.warn("Could not install temporary referrer rule:", error);
+    return await fetch(url, options);
+  }
+
+  try {
+    return await fetch(url, options);
+  } finally {
+    try {
+      await chromeApi.declarativeNetRequest.updateSessionRules({
+        removeRuleIds: [referrerRule.id],
+      });
+    } catch (error) {
+      console.warn("Could not remove temporary referrer rule:", error);
+    }
+  }
+}
+
+/**
+ * Builds a temporary header rewrite rule for image hosts that reject scripted referrers.
+ *
+ * @param {string} imageUrl
+ * @param {string} referrer
+ * @returns {chrome.declarativeNetRequest.Rule | null}
+ */
+function getReferrerHeaderRule(imageUrl, referrer) {
+  if (!chromeApi?.declarativeNetRequest?.updateSessionRules || !referrer) {
+    return null;
+  }
+
+  let url;
+
+  try {
+    url = new URL(imageUrl);
+  } catch {
+    return null;
+  }
+
+  if (!isPixivImageHost(url.hostname)) {
+    return null;
+  }
+
+  const id = nextReferrerRuleId++;
+
+  return {
+    id,
+    priority: 1,
+    action: {
+      type: "modifyHeaders",
+      requestHeaders: [
+        {
+          header: "referer",
+          operation: "set",
+          value: referrer,
+        },
+      ],
+    },
+    condition: {
+      requestDomains: [url.hostname],
+      resourceTypes: ["xmlhttprequest", "other"],
+    },
+  };
+}
+
+/**
  * Gets the origin referrer to use when fetching an image.
  *
  * @param {string} imageUrl The URL of the image to fetch
+ * @param {string} sourceUrl The URL of the page where the image was found
  * @returns {string} The image URL origin as a referrer, or an empty referrer
  */
-export function getReferrerFromImageUrl(imageUrl) {
+export function getReferrerFromImageUrl(imageUrl, sourceUrl) {
   try {
-    const url = new URL(imageUrl);
+    const image = new URL(imageUrl);
+    const source = getHttpUrl(sourceUrl);
 
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
+    if (isPixivImageHost(image.hostname)) {
+      if (source && !isPixivImageHost(source.hostname)) {
+        return `${source.origin}/`;
+      }
+
+      return "https://www.pixiv.net/";
+    }
+
+    if (source) {
+      return `${source.origin}/`;
+    }
+
+    if (image.protocol !== "http:" && image.protocol !== "https:") {
       return "";
     }
 
-    return `${url.origin}/`;
+    return `${image.origin}/`;
   } catch {
     return "";
   }
+}
+
+/**
+ * Parses a URL only when it can be used as an HTTP referrer.
+ *
+ * @param {string} url
+ * @returns {URL | null}
+ */
+function getHttpUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      return null;
+    }
+
+    return parsedUrl;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Checks whether a hostname belongs to Pixiv image CDN.
+ *
+ * @param {string} hostname
+ * @returns {boolean}
+ */
+function isPixivImageHost(hostname) {
+  return hostname === "pximg.net" || hostname.endsWith(".pximg.net");
 }
 
 /**

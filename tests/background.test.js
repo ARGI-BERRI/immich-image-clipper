@@ -37,6 +37,7 @@ describe("fetchImageAsFile", () => {
     expect(fetch).toHaveBeenCalledWith("https://example.com/image", {
       credentials: "include",
       referrer: "https://example.com/",
+      referrerPolicy: "no-referrer-when-downgrade",
     });
     expect(result.blob).toBe(blob);
     expect(result.fileName).toBe("download.png");
@@ -105,6 +106,32 @@ describe("getReferrerFromImageUrl", () => {
     );
 
     expect(referrer).toBe("https://example.com:8443/");
+  });
+
+  it("should return the source URL origin when it is available", () => {
+    const referrer = getReferrerFromImageUrl(
+      "https://cdn.example.com/path/to/image.jpg",
+      "https://source.example.com/gallery/123",
+    );
+
+    expect(referrer).toBe("https://source.example.com/");
+  });
+
+  it("should return the Pixiv origin for pximg URLs without a source URL", () => {
+    const referrer = getReferrerFromImageUrl(
+      "https://i.pximg.net/img-original/img/2026/01/01/00/00/00/123_p0.png",
+    );
+
+    expect(referrer).toBe("https://www.pixiv.net/");
+  });
+
+  it("should return the Pixiv source origin for pximg URLs when available", () => {
+    const referrer = getReferrerFromImageUrl(
+      "https://i.pximg.net/img-original/img/2026/01/01/00/00/00/123_p0.png",
+      "https://www.pixiv.net/artworks/123",
+    );
+
+    expect(referrer).toBe("https://www.pixiv.net/");
   });
 
   it("should return an empty referrer when the image URL has no HTTP origin", () => {

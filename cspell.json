@@ -9,7 +9,13 @@
     // HTML attributes
     "noreferrer",
     // vitest
-    "unstub"
+    "unstub",
+    // Services
+    "pixiv",
+    "pximg",
   ],
-  "ignorePaths": ["coverage/**/*", "pnpm-lock.yaml"]
+  "ignorePaths": [
+    "coverage/**/*",
+    "pnpm-lock.yaml"
+  ]
 }
